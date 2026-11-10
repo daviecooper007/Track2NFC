@@ -1,5 +1,13 @@
-  - name: Extract Android project
-        run: |
-          python - <<'PY'
-          from pathlib import Path, PurePosixPath
-          from zipfile import ZipFile
+- name: Extract Android project
+  run: |
+    python - <<'PY'
+    from pathlib import Path, PurePosixPath
+    from zipfile import ZipFile
+    print("Extracting Android project...")
+    PY- name: Extract Android project
+  run: |
+    python - <<'PY'
+    from pathlib import Path, PurePosixPath
+    from zipfile import ZipFile
+    print("Extracting Android project...")
+    PY
