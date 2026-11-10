@@ -1,4 +1,4 @@
-name: Android project
+name: Build Android APK
 
 on:
   push:
@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  extract-android-project:
-    name: Extract Android project
+  build-apk:
+    name: Build debug APK
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -23,6 +23,7 @@ jobs:
       - name: Extract Android project
         run: |
           python - <<'PY'
+          import os
           from pathlib import Path, PurePosixPath
           from zipfile import ZipFile
 
@@ -50,8 +51,53 @@ jobs:
           print(f"Extracted {archive} into {destination}")
           PY
 
-      - name: Upload extracted project
+      - name: Find Android Gradle project
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          root = Path("android-project")
+          projects = [
+              wrapper.parent
+              for wrapper in root.rglob("gradlew")
+              if (wrapper.parent / "settings.gradle").is_file()
+              or (wrapper.parent / "settings.gradle.kts").is_file()
+          ]
+
+          if not projects:
+              raise FileNotFoundError(
+                  "Could not find gradlew alongside settings.gradle or "
+                  "settings.gradle.kts in the extracted ZIP."
+              )
+
+          project_dir = min(projects, key=lambda path: len(path.parts)).resolve()
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"ANDROID_PROJECT_DIR={project_dir}\n")
+          print(f"Using Android Gradle project at {project_dir}")
+          PY
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: ${{ env.ANDROID_PROJECT_DIR }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-project
-          path: android-project/
+          name: Track2NFC-debug-apk
+          path: android-project/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error
