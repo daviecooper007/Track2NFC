@@ -1,35 +1,57 @@
-  - name: Extract Android project
-    run: |
-      python - <<'PY'
-      from pathlib import Path, PurePosixPath
-      from zipfile import ZipFile
+name: Android project
 
-      archive = Path("Track2NFC_GitHub_Ready.zip")
-      destination = Path("android-project")
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
-      if not archive.is_file():
-          raise FileNotFoundError(f"Project archive not found: {archive}")
+permissions:
+  contents: read
 
-      destination.mkdir(parents=True, exist_ok=True)
-      root = destination.resolve()
+jobs:
+  extract-android-project:
+    name: Extract Android project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      with ZipFile(archive) as project_zip:
-          for entry in project_zip.infolist():
-              member = PurePosixPath(entry.filename)
-              if member.is_absolute() or ".." in member.parts:
-                  raise ValueError(f"Unsafe path in ZIP archive: {entry.filename}")
+      - name: Extract Android project
+        run: |
+          python - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
 
-              target = (destination / Path(*member.parts)).resolve()
-              if not target.is_relative_to(root):
-                  raise ValueError(f"Unsafe extraction target: {entry.filename}")
+          archive = Path("Track2NFC_GitHub_Ready.zip")
+          destination = Path("android-project")
 
-              project_zip.extract(entry, destination)
+          if not archive.is_file():
+              raise FileNotFoundError(f"Project archive not found: {archive}")
 
-      print(f"Extracted {archive} into {destination}")
-      PY
+          destination.mkdir(parents=True, exist_ok=True)
+          root = destination.resolve()
 
-  - name: Upload extracted project
-    uses: actions/upload-artifact@v4
-    with:
-      name: android-project
-      path: android-project/
+          with ZipFile(archive) as project_zip:
+              for entry in project_zip.infolist():
+                  member = PurePosixPath(entry.filename)
+                  if member.is_absolute() or ".." in member.parts:
+                      raise ValueError(f"Unsafe path in ZIP archive: {entry.filename}")
+
+                  target = (destination / Path(*member.parts)).resolve()
+                  if not target.is_relative_to(root):
+                      raise ValueError(f"Unsafe extraction target: {entry.filename}")
+
+                  project_zip.extract(entry, destination)
+
+          print(f"Extracted {archive} into {destination}")
+          PY
+
+      - name: Upload extracted project
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-project
+          path: android-project/
