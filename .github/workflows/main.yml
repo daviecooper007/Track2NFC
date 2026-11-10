@@ -1,30 +1,59 @@
-- name: Extract and build
-  run: |
-    set -e
-    python - <<'PY'
-    from pathlib import Path, PurePosixPath
-    from zipfile import ZipFile
+name: Build APK
 
-    destination = Path("project")
-    with ZipFile("Track2NFC_GitHub_Ready.zip") as archive:
-        for info in archive.infolist():
-            name = info.filename.replace("\\", "/")
-            relative_path = PurePosixPath(name)
-            if relative_path.is_absolute() or ".." in relative_path.parts:
-                raise ValueError(f"Unsafe path in archive: {info.filename}")
-            target = destination.joinpath(*relative_path.parts)
-            if info.is_dir():
-                target.mkdir(parents=True, exist_ok=True)
-            else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(archive.read(info))
-    PY
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
-    gradlew=$(find project -type f -name gradlew -print -quit)
-    if [ -z "$gradlew" ]; then
-      echo "Could not find gradlew in the extracted project"
-      exit 1
-    fi
-    cd "$(dirname "$gradlew")"
-    chmod +x gradlew
-    ./gradlew assembleDebug --no-daemon
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Extract Android project
+        run: |
+          if [ ! -f Track2NFC_GitHub_Ready.zip ]; then
+            echo "Track2NFC_GitHub_Ready.zip was not found"
+            exit 1
+          fi
+          mkdir -p project
+          unzip -q Track2NFC_GitHub_Ready.zip -d project
+
+      - name: Build debug APK
+        run: |
+          gradlew=$(find project -type f -name gradlew -print -quit)
+          if [ -z "$gradlew" ]; then
+            echo "No gradlew file found in the extracted ZIP"
+            exit 1
+          fi
+
+          chmod +x "$gradlew"
+          cd "$(dirname "$gradlew")"
+          ./gradlew assembleDebug --no-daemon
+
+          apk=$(find "$GITHUB_WORKSPACE/project" -type f -path '*/build/outputs/apk/debug/*.apk' -print -quit)
+          if [ -z "$apk" ]; then
+            echo "Build finished but no debug APK was found"
+            exit 1
+          fi
+          echo "APK created: $apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Track2NFC-debug-apk
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
