@@ -1,13 +1,21 @@
-- name: Extract Android project
-  run: |
-    python - <<'PY'
-    from pathlib import Path, PurePosixPath
-    from zipfile import ZipFile
-    print("Extracting Android project...")
-    PY- name: Extract Android project
-  run: |
-    python - <<'PY'
-    from pathlib import Path, PurePosixPath
-    from zipfile import ZipFile
-    print("Extracting Android project...")
-    PY
+name: Android project
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  extract-android-project:
+    name: Extract Android project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report extraction status
+        run: echo "Extracting Android project..."
