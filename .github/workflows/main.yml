@@ -1,34 +1,30 @@
-name: Build APK
-on:
-  push:
-  workflow_dispatch:
+- name: Extract and build
+  run: |
+    set -e
+    python - <<'PY'
+    from pathlib import Path, PurePosixPath
+    from zipfile import ZipFile
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    destination = Path("project")
+    with ZipFile("Track2NFC_GitHub_Ready.zip") as archive:
+        for info in archive.infolist():
+            name = info.filename.replace("\\", "/")
+            relative_path = PurePosixPath(name)
+            if relative_path.is_absolute() or ".." in relative_path.parts:
+                raise ValueError(f"Unsafe path in archive: {info.filename}")
+            target = destination.joinpath(*relative_path.parts)
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(archive.read(info))
+    PY
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Extract and build
-        run: |
-          set -e
-          unzip -q Track2NFC_GitHub_Ready.zip -d project
-          gradlew=$(find project -type f -name gradlew -print -quit)
-          if [ -z "$gradlew" ]; then
-            echo "Could not find gradlew in the extracted project"
-            exit 1
-          fi
-          cd "$(dirname "$gradlew")"
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: app-debug
-          path: project/**/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+    gradlew=$(find project -type f -name gradlew -print -quit)
+    if [ -z "$gradlew" ]; then
+      echo "Could not find gradlew in the extracted project"
+      exit 1
+    fi
+    cd "$(dirname "$gradlew")"
+    chmod +x gradlew
+    ./gradlew assembleDebug --no-daemon
